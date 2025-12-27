@@ -32,8 +32,8 @@ export default function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Simulate API call (frontend only)
+      await new Promise((resolve) => setTimeout(resolve, 500));
       console.log("Login data:", data);
       // Redirect to dashboard after successful login
       router.push("/auth/dashboard");
@@ -74,4 +74,5 @@ export default function LoginForm() {
     </form>
   );
 }
+
 
