@@ -25,6 +25,7 @@ export default function CreateCoursePage() {
   const [form, setForm] = useState({
     title: "",
     description: "",
+    features: "",
     category: "",
     price: "",
     level: "Beginner",
@@ -33,6 +34,7 @@ export default function CreateCoursePage() {
   const [coursePdf, setCoursePdf] = useState<File | null>(null);
   const [lessons, setLessons] = useState<LessonDraft[]>([createLessonDraft()]);
   const [status, setStatus] = useState("");
+  const [statusType, setStatusType] = useState<"success" | "error">("success");
   const [createdCourseId, setCreatedCourseId] = useState("");
   const [loading, setLoading] = useState(false);
   const getFileName = (file: File | null, fallback: string) => (file ? file.name : fallback);
@@ -47,11 +49,14 @@ export default function CreateCoursePage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setStatus("");
+    setStatusType("success");
     if (!form.title.trim()) {
+      setStatusType("error");
       setStatus("Course title is required.");
       return;
     }
     if (!coursePdf) {
+      setStatusType("error");
       setStatus("Course PDF is required.");
       return;
     }
@@ -59,6 +64,7 @@ export default function CreateCoursePage() {
     const validLessons = lessons.filter((l) => l.title.trim() || l.file);
     for (const lesson of validLessons) {
       if (!lesson.title.trim() || !lesson.file) {
+        setStatusType("error");
         setStatus("Each lesson must include title and file.");
         return;
       }
@@ -66,23 +72,42 @@ export default function CreateCoursePage() {
 
     try {
       setLoading(true);
-      const courseForm = new FormData();
-      courseForm.append("title", form.title.trim());
-      courseForm.append("description", form.description.trim());
-      courseForm.append("category", form.category.trim());
-      courseForm.append("price", form.price || "0");
-      courseForm.append("level", form.level);
-      courseForm.append("coursePdf", coursePdf);
-      if (thumbnail) courseForm.append("thumbnail", thumbnail);
-
       const created = await apiFetch<any>("/courses", {
         method: "POST",
-        body: courseForm,
+        body: JSON.stringify({
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category.trim(),
+          price: form.price || "0",
+          level: form.level || "Beginner",
+          features: form.features,
+        }),
       });
       const course = created.data;
       const courseId = course?._id;
       if (!courseId) throw new Error("Course created but id is missing.");
       setCreatedCourseId(courseId);
+
+      if (thumbnail) {
+        const imageForm = new FormData();
+        imageForm.append("image", thumbnail);
+        await apiFetch(`/courses/${courseId}/image`, {
+          method: "POST",
+          body: imageForm,
+        });
+      }
+
+      // Save required course PDF as first lesson material so it shows in course detail.
+      const coursePdfLessonForm = new FormData();
+      coursePdfLessonForm.append("title", `${form.title.trim()} Course PDF`);
+      coursePdfLessonForm.append("description", "Course document");
+      coursePdfLessonForm.append("fileType", "pdf");
+      coursePdfLessonForm.append("orderIndex", "1");
+      coursePdfLessonForm.append("lessonFile", coursePdf);
+      await apiFetch(`/courses/${courseId}/lessons`, {
+        method: "POST",
+        body: coursePdfLessonForm,
+      });
 
       for (let index = 0; index < validLessons.length; index += 1) {
         const lesson = validLessons[index];
@@ -90,7 +115,7 @@ export default function CreateCoursePage() {
         lessonForm.append("title", lesson.title.trim());
         lessonForm.append("description", lesson.description.trim());
         lessonForm.append("fileType", lesson.fileType);
-        lessonForm.append("orderIndex", String(index + 1));
+        lessonForm.append("orderIndex", String(index + 2));
         lessonForm.append("lessonFile", lesson.file as File);
         await apiFetch(`/courses/${courseId}/lessons`, {
           method: "POST",
@@ -100,6 +125,7 @@ export default function CreateCoursePage() {
 
       setStatus("Course created. Waiting for admin approval before students can access it.");
     } catch (error) {
+      setStatusType("error");
       setStatus(error instanceof Error ? error.message : "Course creation failed.");
     } finally {
       setLoading(false);
@@ -138,6 +164,12 @@ export default function CreateCoursePage() {
               onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
               placeholder="Description"
               className="min-h-[90px] rounded-2xl border border-slate-200 px-4 py-2 text-xs md:col-span-2"
+            />
+            <input
+              value={form.features}
+              onChange={(e) => setForm((p) => ({ ...p, features: e.target.value }))}
+              placeholder="Features (comma separated)"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-xs md:col-span-2"
             />
             <input
               value={form.price}
@@ -271,7 +303,11 @@ export default function CreateCoursePage() {
           >
             {loading ? "Creating..." : "Create course"}
           </button>
-          {status && <p className="mt-2 text-xs text-emerald-600">{status}</p>}
+          {status && (
+            <p className={`mt-2 text-xs ${statusType === "error" ? "text-rose-600" : "text-emerald-600"}`}>
+              {status}
+            </p>
+          )}
           {createdCourseId && (
             <Link
               href={`/dashboard/tutor/course/${createdCourseId}`}

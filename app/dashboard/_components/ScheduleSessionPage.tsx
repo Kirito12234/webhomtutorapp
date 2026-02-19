@@ -36,30 +36,6 @@ export default function ScheduleSessionPage() {
     notes: "",
   });
   const [status, setStatus] = useState("");
-  const notifySessionUpdate = async (payload: {
-    studentId?: string;
-    course: string;
-    date: string;
-    time: string;
-  }) => {
-    const message = `Session scheduled: ${payload.course} on ${payload.date} ${payload.time}`.trim();
-    const body = {
-      type: "session_updated",
-      title: "Session Update",
-      message,
-      userId: payload.studentId,
-      role: "student",
-    };
-    const attempts = ["/notifications", "/notifications/broadcast"];
-    for (const path of attempts) {
-      try {
-        await apiFetch(path, { method: "POST", body: JSON.stringify(body) });
-        return;
-      } catch {
-        // try next endpoint
-      }
-    }
-  };
 
   useEffect(() => {
     const load = async () => {
@@ -131,12 +107,6 @@ export default function ScheduleSessionPage() {
           duration: Number(form.duration) || 60,
           notes: form.notes || "",
         }),
-      });
-      await notifySessionUpdate({
-        studentId: form.student || undefined,
-        course: selectedCourse?.title || "Session",
-        date: form.date || "TBD",
-        time: form.time || "",
       });
       setStatus("Session created successfully.");
       // Refresh

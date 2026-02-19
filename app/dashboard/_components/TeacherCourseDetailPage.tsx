@@ -131,7 +131,7 @@ export default function TeacherCourseDetailPage({ courseId, returnTo }: TeacherC
     try {
       setStatus("");
       setBusyLessonId(lessonId);
-      await apiFetch(`/courses/lessons/${lessonId}`, { method: "DELETE" });
+      await apiFetch(`/lessons/${lessonId}`, { method: "DELETE" });
       setStatus("Lesson deleted from database.");
       await load();
     } catch (error) {

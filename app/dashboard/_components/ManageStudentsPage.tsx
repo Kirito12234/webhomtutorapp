@@ -33,6 +33,7 @@ export default function ManageStudentsPage() {
   }, []);
 
   const activeStudents = requests.filter((item) => item.status === "accepted");
+  const pendingStudents = requests.filter((item) => item.status === "pending");
   const normalized = search.trim().toLowerCase();
 
   const filteredActiveStudents = useMemo(() => {
@@ -53,24 +54,30 @@ export default function ManageStudentsPage() {
     });
   }, [enrollments, normalized]);
 
-  const deactivateStudent = async (requestId: string) => {
+  const updateRequestStatus = async (requestId: string, nextStatus: "accepted" | "rejected") => {
     try {
       setStatus("");
       setBusyId(requestId);
       await apiFetch(`/teacher-requests/${requestId}`, {
         method: "PUT",
-        body: JSON.stringify({ status: "cancelled" }),
+        body: JSON.stringify({ status: nextStatus }),
       });
       setRequests((prev) =>
-        prev.map((item) => (item._id === requestId ? { ...item, status: "cancelled" } : item))
+        prev.map((item) => (item._id === requestId ? { ...item, status: nextStatus } : item))
       );
-      setStatus("Accepted student deactivated.");
+      setStatus(
+        nextStatus === "accepted"
+          ? "Student request approved and student notified."
+          : "Student request rejected and student notified."
+      );
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Failed to deactivate student.");
+      setStatus(error instanceof Error ? error.message : "Failed to update request.");
     } finally {
       setBusyId("");
     }
   };
+
+  const deactivateStudent = async (requestId: string) => updateRequestStatus(requestId, "rejected");
 
   const removeEnrollment = async (enrollmentId: string) => {
     try {
@@ -115,6 +122,45 @@ export default function ManageStudentsPage() {
               : `${requests.length} request(s) - ${activeStudents.length} accepted.`}
           </p>
           {status && <p className="mt-2 text-xs text-brand-600">{status}</p>}
+          <div className="mt-4 flex flex-col gap-3">
+            {pendingStudents.length === 0 && (
+              <p className="text-xs text-slate-500">No pending requests.</p>
+            )}
+            {pendingStudents.map((item) => (
+              <div
+                key={item._id}
+                className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                    {(item.student?.name || "S").slice(0, 1)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{item.student?.name || "Student"}</p>
+                    <p className="text-xs text-slate-500">{item.course?.title || "Course request"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={busyId === item._id}
+                    onClick={() => updateRequestStatus(item._id, "accepted")}
+                    className="rounded-full bg-emerald-600 px-3 py-1 text-xs text-white disabled:opacity-60"
+                  >
+                    {busyId === item._id ? "Working..." : "Approve"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyId === item._id}
+                    onClick={() => updateRequestStatus(item._id, "rejected")}
+                    className="rounded-full bg-rose-100 px-3 py-1 text-xs text-rose-600 disabled:opacity-60"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="rounded-3xl bg-white p-6 shadow-soft">

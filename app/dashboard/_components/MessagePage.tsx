@@ -38,6 +38,9 @@ type Message = {
   };
 };
 
+const resolveTutorId = (item: any) =>
+  String(item?._id || item?.tutorId || item?.user?._id || item?.id || "");
+
 export default function MessagePage({ role }: { role: Role }) {
   const [activeTab, setActiveTab] = useState<"message" | "notification">("message");
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -155,8 +158,20 @@ export default function MessagePage({ role }: { role: Role }) {
   };
   const loadAvailableTutors = async () => {
     if (role !== "student") return;
-    const res = await apiFetch<any>("/professionals", { auth: false });
-    setAvailableTutors(Array.isArray(res.data) ? res.data : []);
+    const endpoints = ["/professionals", "/tutors"];
+    for (const endpoint of endpoints) {
+      try {
+        const res = await apiFetch<any>(endpoint, { auth: false });
+        const list = Array.isArray(res.data) ? res.data : [];
+        if (list.length > 0) {
+          setAvailableTutors(list);
+          return;
+        }
+      } catch {
+        // try next endpoint
+      }
+    }
+    setAvailableTutors([]);
   };
 
   const loadThreadMessages = async (threadId: string) => {
@@ -408,22 +423,24 @@ export default function MessagePage({ role }: { role: Role }) {
                   )}
                   {filteredAvailableTutors.slice(0, 6).map((teacher: any) => (
                     <div
-                      key={teacher._id}
+                      key={resolveTutorId(teacher)}
                       className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2"
                     >
                       <div>
-                        <p className="text-xs font-semibold text-slate-700">{teacher?.user?.name || "Teacher"}</p>
+                        <p className="text-xs font-semibold text-slate-700">
+                          {teacher?.user?.name || teacher?.name || "Teacher"}
+                        </p>
                         <p className="text-[11px] text-slate-500">
                           {(teacher?.subjects || []).map((s: any) => s?.title).filter(Boolean).join(", ") || "Tutor"}
                         </p>
                       </div>
                       <button
                         type="button"
-                        disabled={requestingTutorId === String(teacher._id)}
-                        onClick={() => requestTutorChat(String(teacher._id))}
+                        disabled={requestingTutorId === resolveTutorId(teacher)}
+                        onClick={() => requestTutorChat(resolveTutorId(teacher))}
                         className="rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
                       >
-                        {requestingTutorId === String(teacher._id) ? "Sending..." : "Request chat"}
+                        {requestingTutorId === resolveTutorId(teacher) ? "Sending..." : "Request chat"}
                       </button>
                     </div>
                   ))}

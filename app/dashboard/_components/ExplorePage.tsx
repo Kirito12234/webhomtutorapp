@@ -6,15 +6,32 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, MessageSquare } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
+const resolveTutorId = (item: any) =>
+  String(item?._id || item?.tutorId || item?.user?._id || item?.id || "");
+
 export default function ExplorePage({ role }: { role: "student" | "tutor" }) {
   const router = useRouter();
   const [messageSent, setMessageSent] = useState<string | null>(null);
   const [professionals, setProfessionals] = useState<any[]>([]);
 
   useEffect(() => {
-    apiFetch<any>("/professionals", { auth: false })
-      .then((res) => setProfessionals(res.data || []))
-      .catch(() => setProfessionals([]));
+    const loadProfessionals = async () => {
+      const endpoints = ["/professionals", "/tutors"];
+      for (const endpoint of endpoints) {
+        try {
+          const res = await apiFetch<any>(endpoint, { auth: false });
+          const list = Array.isArray(res?.data) ? res.data : [];
+          if (list.length > 0) {
+            setProfessionals(list);
+            return;
+          }
+        } catch {
+          // try next endpoint
+        }
+      }
+      setProfessionals([]);
+    };
+    loadProfessionals();
   }, []);
 
   const handleMessage = async (tutorId: string) => {
@@ -53,26 +70,27 @@ export default function ExplorePage({ role }: { role: "student" | "tutor" }) {
             )}
             {professionals.map((pro) => (
               <div
-                key={pro._id}
+                key={resolveTutorId(pro)}
                 className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">{pro.user?.name || "Tutor"}</p>
+                  <p className="text-sm font-semibold text-slate-900">{pro.user?.name || pro.name || "Tutor"}</p>
                   <p className="text-xs text-slate-500">
-                    {pro.subjects?.map((s: any) => s.title).join(", ") || "Tutor"} -{" "}
+                    {(pro.subjects || []).map((s: any) => s?.title).filter(Boolean).join(", ") || "Tutor"} -{" "}
                     {pro.location || "Kathmandu"}
                   </p>
                   <p className="text-xs text-slate-400">Rating {pro.rating || 4.8}</p>
                 </div>
                 <button
                   onClick={() => {
-                    if (role === "student") handleMessage(pro._id);
+                    const tutorId = resolveTutorId(pro);
+                    if (role === "student" && tutorId) handleMessage(tutorId);
                   }}
-                  disabled={role !== "student" || messageSent === pro._id}
+                  disabled={role !== "student" || messageSent === resolveTutorId(pro)}
                   className="flex items-center gap-2 rounded-full bg-brand-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   <MessageSquare className="h-3 w-3" />
-                  {role !== "student" ? "Student only" : messageSent === pro._id ? "Sent" : "Message"}
+                  {role !== "student" ? "Student only" : messageSent === resolveTutorId(pro) ? "Sent" : "Message"}
                 </button>
               </div>
             ))}

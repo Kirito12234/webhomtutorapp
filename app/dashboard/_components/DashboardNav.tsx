@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { BookOpen, Home, MessageSquare, Search, User, Clock3 } from "lucide-react";
 
 type DashboardNavProps = {
@@ -29,12 +30,38 @@ const navItems: NavItem[] = [
 
 export default function DashboardNav({ role }: DashboardNavProps) {
   const pathname = usePathname();
+  const [initials, setInitials] = useState("HT");
+
+  useEffect(() => {
+    const raw =
+      window.localStorage.getItem("hometutor.name") ||
+      (() => {
+        try {
+          const user = JSON.parse(window.localStorage.getItem("hometutor.user") || "{}");
+          return String(user?.name || "");
+        } catch {
+          return "";
+        }
+      })();
+
+    const words = String(raw || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (words.length >= 2) {
+      setInitials(`${words[0][0]}${words[1][0]}`.toUpperCase());
+      return;
+    }
+    if (words.length === 1) {
+      setInitials(words[0].slice(0, 2).toUpperCase());
+    }
+  }, []);
 
   return (
     <nav className="flex w-full max-w-[220px] flex-col gap-2 rounded-3xl bg-white p-4 shadow-soft">
       <div className="flex items-center gap-2 px-2 py-3 text-base font-semibold text-slate-900">
         <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-600 text-white">
-          H
+          {initials}
         </span>
         Home Tutor
       </div>
@@ -44,7 +71,10 @@ export default function DashboardNav({ role }: DashboardNavProps) {
         .map((item) => {
           const Icon = item.icon;
           const href = `/dashboard/${role}${item.path ? `/${item.path}` : ""}`;
-          const isActive = pathname === href || pathname.startsWith(`${href}/`);
+          const isHome = item.path === "";
+          const isActive = isHome
+            ? pathname === href
+            : pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
               key={item.id}

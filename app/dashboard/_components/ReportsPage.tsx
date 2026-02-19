@@ -12,23 +12,10 @@ type ReportItem = {
   content: Record<string, unknown>;
 };
 
-const dummyReports: ReportItem[] = [
-  {
-    id: "dummy-jan",
-    title: "January Teaching Report (Demo)",
-    status: "Ready",
-    content: { source: "demo", month: "January", notes: "Sample teaching report" },
-  },
-  {
-    id: "dummy-feb",
-    title: "February Teaching Report (Demo)",
-    status: "Pending",
-    content: { source: "demo", month: "February", notes: "Sample report not finalized" },
-  },
-];
-
 export default function ReportsPage({ role }: { role: "student" | "tutor" }) {
-  const [reports, setReports] = useState<ReportItem[]>(dummyReports);
+  const [reports, setReports] = useState<ReportItem[]>([]);
+  const [status, setStatus] = useState("");
+  const backHref = `/dashboard/${role}/account`;
 
   useEffect(() => {
     const load = async () => {
@@ -73,7 +60,7 @@ export default function ReportsPage({ role }: { role: "student" | "tutor" }) {
             },
           ];
 
-          setReports([...dbReports, ...dummyReports]);
+          setReports(dbReports);
           return;
         }
 
@@ -99,9 +86,10 @@ export default function ReportsPage({ role }: { role: "student" | "tutor" }) {
             },
           },
         ];
-        setReports([...dbReports, ...dummyReports]);
+        setReports(dbReports);
       } catch {
-        setReports(dummyReports);
+        setReports([]);
+        setStatus("Unable to load reports from database.");
       }
     };
 
@@ -134,7 +122,7 @@ export default function ReportsPage({ role }: { role: "student" | "tutor" }) {
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <div className="flex w-full items-center gap-3 justify-start">
           <Link
-            href={`/dashboard/${role}`}
+            href={backHref}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-soft"
           >
             <ChevronLeft className="h-4 w-4 text-slate-500" />
@@ -147,6 +135,9 @@ export default function ReportsPage({ role }: { role: "student" | "tutor" }) {
             Ready reports: {readyCount}/{reports.length}
           </p>
           <div className="mt-3 flex flex-col gap-3">
+            {reports.length === 0 && (
+              <p className="text-xs text-slate-500">No reports available.</p>
+            )}
             {reports.map((report) => (
               <div
                 key={report.id}
@@ -170,6 +161,7 @@ export default function ReportsPage({ role }: { role: "student" | "tutor" }) {
               </div>
             ))}
           </div>
+          {status && <p className="mt-3 text-xs text-rose-500">{status}</p>}
         </div>
       </div>
     </div>

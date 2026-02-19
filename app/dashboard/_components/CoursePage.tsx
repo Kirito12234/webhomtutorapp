@@ -17,8 +17,23 @@ export default function CoursePage({ role }: { role: "student" | "tutor" }) {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [status, setStatus] = useState("");
   const [favoriteCourseIds, setFavoriteCourseIds] = useState<string[]>([]);
+  const [userInitials, setUserInitials] = useState("HT");
 
   useEffect(() => {
+    const raw =
+      window.localStorage.getItem("hometutor.name") ||
+      (() => {
+        try {
+          const user = JSON.parse(window.localStorage.getItem("hometutor.user") || "{}");
+          return String(user?.name || "");
+        } catch {
+          return "";
+        }
+      })();
+    const words = String(raw || "").trim().split(/\s+/).filter(Boolean);
+    if (words.length >= 2) setUserInitials(`${words[0][0]}${words[1][0]}`.toUpperCase());
+    else if (words.length === 1) setUserInitials(words[0].slice(0, 2).toUpperCase());
+
     const load = async () => {
       try {
         const params = new URLSearchParams();
@@ -105,7 +120,7 @@ export default function CoursePage({ role }: { role: "student" | "tutor" }) {
               <p className="text-xs text-slate-500">{filteredCourses.length} courses</p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-400 shadow-soft">
-              <span className="text-xs font-semibold">ST</span>
+              <span className="text-xs font-semibold">{userInitials}</span>
             </div>
           </div>
 
@@ -192,6 +207,14 @@ export default function CoursePage({ role }: { role: "student" | "tutor" }) {
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-slate-900">{course.title}</p>
                     <p className="text-xs text-slate-500">{course.tutor?.name || "Tutor"}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                      {course.description || "No description provided."}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {Array.isArray(course.features) && course.features.length > 0
+                        ? course.features.slice(0, 2).join(", ")
+                        : "Features not specified"}
+                    </p>
                     <div className="mt-2 flex items-center gap-3 text-xs text-slate-500">
                       <span className="font-semibold text-brand-600">Rs {course.price || 0}</span>
                       <span className="rounded-full bg-slate-100 px-2 py-1">{course.level || "Beginner"}</span>

@@ -10,7 +10,8 @@ const NAME_STORAGE_KEY = "hometutor.name";
 
 export default function StudentDashboard() {
   const [studentName, setStudentName] = useState("Student");
-  const [requestedIds, setRequestedIds] = useState<number[]>([]);
+  const [studentInitials, setStudentInitials] = useState("ST");
+  const [requestedIds, setRequestedIds] = useState<string[]>([]);
   const [tutors, setTutors] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [learnedMinutes, setLearnedMinutes] = useState(0);
@@ -18,6 +19,9 @@ export default function StudentDashboard() {
   useEffect(() => {
     const storedName = window.localStorage.getItem(NAME_STORAGE_KEY);
     if (storedName) {
+      const words = storedName.trim().split(/\s+/).filter(Boolean);
+      if (words.length >= 2) setStudentInitials(`${words[0][0]}${words[1][0]}`.toUpperCase());
+      else if (words.length === 1) setStudentInitials(words[0].slice(0, 2).toUpperCase());
       setStudentName(storedName.split(" ")[0]);
     }
     const load = async () => {
@@ -45,7 +49,7 @@ export default function StudentDashboard() {
     };
   }, []);
 
-  const handleRequest = (id: number) => {
+  const handleRequest = (id: string) => {
     if (!requestedIds.includes(id)) {
       setRequestedIds((prev) => [...prev, id]);
       const tutor = tutors.find((item) => item.user?._id === id || item._id === id);
@@ -83,7 +87,7 @@ export default function StudentDashboard() {
                 <p className="text-sm text-brand-50">Let&apos;s start learning</p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
-                <span className="text-sm font-semibold">ST</span>
+                <span className="text-sm font-semibold">{studentInitials}</span>
               </div>
             </div>
           </div>
@@ -234,15 +238,15 @@ export default function StudentDashboard() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => handleRequest(tutor.user?._id || tutor._id)}
+                    onClick={() => handleRequest(String(tutor.user?._id || tutor._id))}
                     className={`mt-4 w-full rounded-2xl px-4 py-2 text-xs font-semibold ${
-                      requestedIds.includes(tutor.user?._id || tutor._id)
+                      requestedIds.includes(String(tutor.user?._id || tutor._id))
                         ? "bg-slate-100 text-slate-400"
                         : "bg-brand-600 text-white hover:bg-brand-500"
                     }`}
-                    disabled={requestedIds.includes(tutor.user?._id || tutor._id)}
+                    disabled={requestedIds.includes(String(tutor.user?._id || tutor._id))}
                   >
-                    {requestedIds.includes(tutor.user?._id || tutor._id) ? "Request sent" : "Request tutor"}
+                    {requestedIds.includes(String(tutor.user?._id || tutor._id)) ? "Request sent" : "Request tutor"}
                   </button>
                 </div>
               ))}

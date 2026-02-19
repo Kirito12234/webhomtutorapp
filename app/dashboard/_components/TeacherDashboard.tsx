@@ -10,7 +10,7 @@ import {
   UserCheck
 } from "lucide-react";
 import DashboardNav from "./DashboardNav";
-import { apiFetch, getUser } from "../../lib/api";
+import { apiFetch, apiHost, getUser } from "../../lib/api";
 
 const NAME_STORAGE_KEY = "hometutor.name";
 
@@ -22,6 +22,25 @@ const quickActions = [
   { id: "share", label: "Share invite", icon: Share2 },
   { id: "payouts", label: "Payout settings", icon: MessageSquare }
 ] as const;
+
+const resolveTutorId = (course: any) =>
+  String(
+    course?.tutor?._id ||
+      course?.tutorId?._id ||
+      course?.teacher?._id ||
+      course?.teacherId?._id ||
+      course?.tutorId ||
+      course?.teacherId ||
+      course?.tutor ||
+      course?.teacher ||
+      ""
+  );
+
+const resolveCourseImage = (course: any) => {
+  const raw = course?.thumbnailUrl || course?.imageUrl || "";
+  if (!raw) return "";
+  return String(raw).startsWith("http") ? raw : `${apiHost}${raw}`;
+};
 
 export default function TeacherDashboard() {
   const [courses, setCourses] = useState<any[]>([]);
@@ -45,36 +64,61 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     const sync = async () => {
-      try {
-        const courseRes = await apiFetch<any>("/courses");
-        const user = getUser<{ _id?: string }>();
-        const courseData = courseRes.data || [];
+      const user = getUser<{ _id?: string }>();
+      const [
+        courseRes,
+        requestRes,
+        enrollRes,
+        summaryRes,
+        approvedRes,
+        progressRes,
+      ] = await Promise.allSettled([
+        apiFetch<any>("/courses"),
+        apiFetch<any>("/teacher-requests"),
+        apiFetch<any>("/enrollments"),
+        apiFetch<any>("/payments/summary"),
+        apiFetch<any>("/payments/approved"),
+        apiFetch<any>("/lessons/progress/summary"),
+      ]);
+
+      if (courseRes.status === "fulfilled") {
+        const courseData = courseRes.value?.data || [];
         const filtered = user?._id
-          ? courseData.filter((course: any) => course.tutor?._id === user._id)
+          ? courseData.filter((course: any) => {
+              return resolveTutorId(course) === String(user._id);
+            })
           : courseData;
         setCourses(filtered);
-        const requestRes = await apiFetch<any>("/teacher-requests");
-        setRequests(requestRes.data || []);
-        const enrollRes = await apiFetch<any>("/enrollments");
-        setEnrollments(enrollRes.data || []);
-        const summaryRes = await apiFetch<any>("/payments/summary");
+      }
+
+      if (requestRes.status === "fulfilled") {
+        setRequests(requestRes.value?.data || []);
+      }
+
+      if (enrollRes.status === "fulfilled") {
+        setEnrollments(enrollRes.value?.data || []);
+      }
+
+      if (summaryRes.status === "fulfilled") {
         setEarnings({
-          thisMonth: Number(summaryRes?.data?.thisMonth || 0),
-          lastMonth: Number(summaryRes?.data?.lastMonth || 0),
-          total: Number(summaryRes?.data?.total || 0),
-          pending: Number(summaryRes?.data?.pending || 0),
-          currency: String(summaryRes?.data?.currency || "NPR"),
+          thisMonth: Number(summaryRes.value?.data?.thisMonth || 0),
+          lastMonth: Number(summaryRes.value?.data?.lastMonth || 0),
+          total: Number(summaryRes.value?.data?.total || 0),
+          pending: Number(summaryRes.value?.data?.pending || 0),
+          currency: String(summaryRes.value?.data?.currency || "NPR"),
         });
-        const approvedRes = await apiFetch<any>("/payments/approved");
-        setApprovedPayments(Array.isArray(approvedRes?.data) ? approvedRes.data : []);
-        const progressRes = await apiFetch<any>("/lessons/progress/summary");
+      }
+
+      if (approvedRes.status === "fulfilled") {
+        setApprovedPayments(Array.isArray(approvedRes.value?.data) ? approvedRes.value.data : []);
+      }
+
+      if (progressRes.status === "fulfilled") {
         setLessonProgressSummary({
-          overallPercentage: Number(progressRes?.data?.overallPercentage || 0),
-          totalEnrolled: Number(progressRes?.data?.totalEnrolled || 0),
-          completedStudents: Number(progressRes?.data?.completedStudents || 0),
+          overallPercentage: Number(progressRes.value?.data?.overallPercentage || 0),
+          totalEnrolled: Number(progressRes.value?.data?.totalEnrolled || 0),
+          completedStudents: Number(progressRes.value?.data?.completedStudents || 0),
         });
-      } catch {
-        // ignore
       }
     };
     sync();
@@ -249,8 +293,17 @@ export default function TeacherDashboard() {
                   href={`/dashboard/tutor/course/${course._id}`}
                   className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 hover:bg-slate-50"
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                    <GraduationCap className="h-5 w-5" />
+                  <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-emerald-100 text-emerald-700">
+                    {resolveCourseImage(course) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={resolveCourseImage(course)}
+                        alt={course.title || "Course"}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <GraduationCap className="h-5 w-5" />
+                    )}
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{course.title}</p>
@@ -273,6 +326,14 @@ export default function TeacherDashboard() {
                 <p className="text-xs text-slate-500">No approved payments yet.</p>
               )}
               {approvedPayments.slice(0, 5).map((payment) => (
+                (() => {
+                  const amount =
+                    Number(payment?.amount || 0) > 0
+                      ? Number(payment.amount)
+                      : Number(payment?.course?.price || 0) > 0
+                        ? Number(payment.course.price)
+                        : 0;
+                  return (
                 <div
                   key={payment._id}
                   className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3"
@@ -285,9 +346,11 @@ export default function TeacherDashboard() {
                     </p>
                   </div>
                   <p className="text-sm font-semibold text-emerald-700">
-                    Rs {Number(payment.amount || 0).toLocaleString()}
+                    Rs {amount.toLocaleString()}
                   </p>
                 </div>
+                  );
+                })()
               ))}
             </div>
           </div>

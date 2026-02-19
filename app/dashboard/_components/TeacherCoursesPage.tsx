@@ -3,7 +3,25 @@
 import Link from "next/link";
 import { ChevronLeft, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { apiFetch, getUser } from "../../lib/api";
+import { apiFetch, getUser, apiHost } from "../../lib/api";
+
+const resolveTutorId = (course: any) =>
+  String(
+    course?.tutor?._id ||
+      course?.tutorId?._id ||
+      course?.teacher?._id ||
+      course?.teacherId?._id ||
+      course?.tutorId ||
+      course?.teacherId ||
+      course?.tutor ||
+      course?.teacher ||
+      ""
+  );
+const resolveCourseImage = (course: any) => {
+  const raw = course?.thumbnailUrl || course?.imageUrl || "";
+  if (!raw) return "";
+  return String(raw).startsWith("http") ? raw : `${apiHost}${raw}`;
+};
 
 export default function TeacherCoursesPage() {
   const [courses, setCourses] = useState<any[]>([]);
@@ -17,7 +35,7 @@ export default function TeacherCoursesPage() {
         const user = getUser<{ _id?: string }>();
         const data = response.data || [];
         const filtered = user?._id
-          ? data.filter((course: any) => course.tutor?._id === user._id)
+          ? data.filter((course: any) => resolveTutorId(course) === String(user._id))
           : data;
         setCourses(filtered);
       } catch (error) {
@@ -77,15 +95,35 @@ export default function TeacherCoursesPage() {
                 href={`/dashboard/tutor/course/${course._id}`}
                 className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 hover:bg-slate-50"
               >
-                <div>
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                    {resolveCourseImage(course) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={resolveCourseImage(course)}
+                        alt={course.title || "Course"}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-900">{course.title}</p>
                   <p className="text-xs text-slate-500">{course.category}</p>
+                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                    {course.description || "No description provided."}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {Array.isArray(course.features) && course.features.length > 0
+                      ? course.features.slice(0, 3).join(", ")
+                      : "Features not specified"}
+                  </p>
                   <p className="text-xs text-slate-400">
                     {course.createdAt ? course.createdAt.split("T")[0] : ""}
                   </p>
                   <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
                     {course.isNew ? "new" : course.isPopular ? "popular" : "active"}
                   </span>
+                  </div>
                 </div>
                 <button
                   onClick={(event) => {

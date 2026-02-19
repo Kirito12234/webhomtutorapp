@@ -21,6 +21,11 @@ type RemoteStreamState = {
   stream: MediaStream;
 };
 
+type CameraDevice = {
+  id: string;
+  label: string;
+};
+
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
@@ -37,6 +42,8 @@ export default function LiveSessionPanel({ role, courseId }: { role: Role; cours
   const [micEnabled, setMicEnabled] = useState(true);
   const [facingMode, setFacingMode] = useState<FacingMode>("user");
   const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
+  const [cameraDevices, setCameraDevices] = useState<CameraDevice[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -75,15 +82,34 @@ export default function LiveSessionPanel({ role, courseId }: { role: Role; cours
     });
   };
 
-  const createLocalMedia = async (nextFacingMode: FacingMode) => {
+  const createLocalMedia = async (nextFacingMode: FacingMode, cameraId?: string) => {
+    const videoConstraint = cameraId
+      ? { deviceId: { exact: cameraId } }
+      : { facingMode: { ideal: nextFacingMode } };
     const constraints: MediaStreamConstraints = {
-      video: { facingMode: { ideal: nextFacingMode } },
+      video: videoConstraint,
       audio: true,
     };
     try {
       return await navigator.mediaDevices.getUserMedia(constraints);
     } catch {
       return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    }
+  };
+
+  const loadCameraDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videos = devices
+        .filter((d) => d.kind === "videoinput")
+        .map((d, index) => ({
+          id: d.deviceId,
+          label: d.label || `Camera ${index + 1}`,
+        }));
+      setCameraDevices(videos);
+      if (!selectedCameraId && videos[0]?.id) setSelectedCameraId(videos[0].id);
+    } catch {
+      setCameraDevices([]);
     }
   };
 
@@ -113,6 +139,10 @@ export default function LiveSessionPanel({ role, courseId }: { role: Role; cours
     const interval = setInterval(loadLiveSessions, 8000);
     return () => clearInterval(interval);
   }, [courseId, role]);
+
+  useEffect(() => {
+    loadCameraDevices();
+  }, []);
 
   useEffect(() => {
     applyTrackEnabledStates();
@@ -160,7 +190,7 @@ export default function LiveSessionPanel({ role, courseId }: { role: Role; cours
       await setLocalVideoStream(localStreamRef.current);
       return localStreamRef.current;
     }
-    const media = await createLocalMedia(facingMode);
+    const media = await createLocalMedia(facingMode, selectedCameraId || undefined);
     localStreamRef.current = media;
     applyTrackEnabledStates();
     await setLocalVideoStream(media);
@@ -175,7 +205,13 @@ export default function LiveSessionPanel({ role, courseId }: { role: Role; cours
     try {
       setIsSwitchingCamera(true);
       const nextFacingMode: FacingMode = facingMode === "user" ? "environment" : "user";
-      const nextStream = await createLocalMedia(nextFacingMode);
+      const nextCameraId = (() => {
+        if (!cameraDevices.length || !selectedCameraId) return "";
+        const idx = cameraDevices.findIndex((d) => d.id === selectedCameraId);
+        if (idx < 0) return cameraDevices[0].id;
+        return cameraDevices[(idx + 1) % cameraDevices.length].id;
+      })();
+      const nextStream = await createLocalMedia(nextFacingMode, nextCameraId || undefined);
       const nextVideoTrack = nextStream.getVideoTracks()[0] || null;
       if (!nextVideoTrack) {
         nextStream.getTracks().forEach((t) => t.stop());
@@ -197,6 +233,7 @@ export default function LiveSessionPanel({ role, courseId }: { role: Role; cours
       await setLocalVideoStream(nextStream);
       await replaceTrackForAllPeers("video", nextVideoTrack);
       setFacingMode(nextFacingMode);
+      if (nextCameraId) setSelectedCameraId(nextCameraId);
       setStatusText(nextFacingMode === "user" ? "Front camera selected." : "Back camera selected.");
     } catch {
       setStatusText("Unable to switch camera on this device.");
@@ -595,6 +632,11 @@ export default function LiveSessionPanel({ role, courseId }: { role: Role; cours
                     {facingMode === "user" ? "Front" : "Back"}
                   </span>
                 </button>
+                {cameraDevices.length > 1 && (
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                    {cameraDevices.find((d) => d.id === selectedCameraId)?.label || "Camera"}
+                  </span>
+                )}
               </div>
             </div>
             <video ref={localVideoRef} autoPlay muted playsInline className="h-44 w-full rounded-xl bg-black object-cover" />

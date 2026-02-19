@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { apiFetch } from "../../lib/api";
 
 const faqs = [
   {
@@ -57,9 +58,22 @@ export default function HelpPage({ role }: { role: "student" | "tutor" }) {
             className="mt-4 h-24 w-full rounded-2xl border border-slate-200 px-4 py-2 text-xs"
           />
           <button
-            onClick={() => {
-              setStatus("Support request sent.");
-              setMessage("");
+            onClick={async () => {
+              const text = String(message || "").trim();
+              if (!text) {
+                setStatus("Please enter your message.");
+                return;
+              }
+              try {
+                await apiFetch("/support", {
+                  method: "POST",
+                  body: JSON.stringify({ message: text }),
+                });
+                setStatus("Support request sent to admin.");
+                setMessage("");
+              } catch (error) {
+                setStatus(error instanceof Error ? error.message : "Failed to send support request.");
+              }
             }}
             className="mt-3 rounded-2xl bg-brand-600 px-4 py-2 text-xs font-semibold text-white"
           >
@@ -72,4 +86,3 @@ export default function HelpPage({ role }: { role: "student" | "tutor" }) {
     </div>
   );
 }
-

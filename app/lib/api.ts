@@ -81,7 +81,7 @@ export const api = {
     password: string;
     role: "student" | "tutor";
   }) =>
-    apiFetch<{ success: boolean; token?: string; user?: any }>("/auth/signup", {
+    apiFetch<{ success: boolean; token?: string; user?: any }>("/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),
       auth: false,
