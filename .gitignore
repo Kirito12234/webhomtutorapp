@@ -5,3 +5,8 @@ node_modules/
 backendhometutorapp/node_modules/
 backendhometutorapp/uploads/
 backendhometutorapp/.env
+webadmin/node_modules/
+webadmin/.next/
+webadmin/dist/
+webadmin/build/
+webadmin/.env
